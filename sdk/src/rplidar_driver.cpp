@@ -41,159 +41,215 @@
 #include "rplidar_driver.h"
 #include "sl_crc.h" 
 #include <algorithm>
+#include <cstring>
+using namespace rp::standalone::rplidar;
 
-namespace rp { namespace standalone{ namespace rplidar {
+namespace rp {
+    namespace standalone {
+        namespace rplidar {
 
-    RPlidarDriver::RPlidarDriver(){}
+            RPlidarDriver::RPlidarDriver() {}
 
-    RPlidarDriver::RPlidarDriver(sl_u32 channelType) 
-        :_channelType(channelType)
-    {
-    }
+            RPlidarDriver::RPlidarDriver(sl_u32 channelType)
+                :_channelType(channelType)
+            {
+            }
 
-    RPlidarDriver::~RPlidarDriver() {}
+            RPlidarDriver::~RPlidarDriver() {}
 
-    RPlidarDriver * RPlidarDriver::CreateDriver(_u32 drivertype)
-    {
-        //_channelType = drivertype;
-        return  new RPlidarDriver(drivertype);
-    }
+            RPlidarDriver* RPlidarDriver::CreateDriver(_u32 drivertype)
+            {
+                //_channelType = drivertype;
+                return  new RPlidarDriver(drivertype);
+            }
 
-    void RPlidarDriver::DisposeDriver(RPlidarDriver * drv)
-    {
-        delete drv;
-    }
+            void RPlidarDriver::DisposeDriver(RPlidarDriver* drv)
+            {
+                delete drv;
+            }
 
-    u_result RPlidarDriver::connect(const char *path, _u32 portOrBaud, _u32 flag)
-    {
-        switch (_channelType)
-        {
-        case CHANNEL_TYPE_SERIALPORT:
-            _channel = (*createSerialPortChannel(path, portOrBaud));
-            break;
-        case CHANNEL_TYPE_TCP:
-            _channel = *createTcpChannel(path, portOrBaud);
-            break;
-        case CHANNEL_TYPE_UDP:
-            _channel = *createUdpChannel(path, portOrBaud);
-            break;
+            u_result RPlidarDriver::connect(const char* path, _u32 portOrBaud, _u32 flag)
+            {
+                switch (_channelType)
+                {
+                case CHANNEL_TYPE_SERIALPORT:
+                    _channel = (*createSerialPortChannel(path, portOrBaud));
+                    break;
+                case CHANNEL_TYPE_TCP:
+                    _channel = *createTcpChannel(path, portOrBaud);
+                    break;
+                case CHANNEL_TYPE_UDP:
+                    _channel = *createUdpChannel(path, portOrBaud);
+                    break;
+                }
+                if (!(bool)_channel) return SL_RESULT_OPERATION_FAIL;
+
+                _lidarDrv = *createLidarDriver();
+
+                if (!(bool)_lidarDrv) return SL_RESULT_OPERATION_FAIL;
+
+                sl_result ans = (_lidarDrv)->connect(_channel);
+                return ans;
+            }
+
+            void RPlidarDriver::disconnect()
+            {
+                (_lidarDrv)->disconnect();
+            }
+
+            bool RPlidarDriver::isConnected()
+            {
+                return (_lidarDrv)->isConnected();
+            }
+
+            u_result RPlidarDriver::reset(_u32 timeout)
+            {
+                return (_lidarDrv)->reset();
+            }
+
+            u_result RPlidarDriver::getAllSupportedScanModes(std::vector<RplidarScanMode>& outModes, _u32 timeoutInMs)
+            {
+                return (_lidarDrv)->getAllSupportedScanModes(outModes, timeoutInMs);
+            }
+
+            u_result RPlidarDriver::getTypicalScanMode(_u16& outMode, _u32 timeoutInMs)
+            {
+                return (_lidarDrv)->getTypicalScanMode(outMode, timeoutInMs);
+            }
+
+            u_result RPlidarDriver::startScan(bool force, bool useTypicalScan, _u32 options, RplidarScanMode* outUsedScanMode)
+            {
+                return (_lidarDrv)->startScan(force, useTypicalScan, options, outUsedScanMode);
+            }
+
+            u_result RPlidarDriver::startScanExpress(bool force, _u16 scanMode, _u32 options, RplidarScanMode* outUsedScanMode, _u32 timeout)
+            {
+                return (_lidarDrv)->startScanExpress(force, scanMode, options, outUsedScanMode, timeout);
+            }
+
+            u_result RPlidarDriver::getHealth(rplidar_response_device_health_t& health, _u32 timeout)
+            {
+                return (_lidarDrv)->getHealth(health, timeout);
+            }
+
+            u_result RPlidarDriver::getDeviceInfo(rplidar_response_device_info_t& info, _u32 timeout)
+            {
+                return (_lidarDrv)->getDeviceInfo(info, timeout);
+            }
+
+            u_result RPlidarDriver::setMotorPWM(_u16 pwm)
+            {
+                return (_lidarDrv)->setMotorSpeed(pwm);
+            }
+
+            u_result RPlidarDriver::checkMotorCtrlSupport(bool& support, _u32 timeout)
+            {
+                MotorCtrlSupport motorSupport;
+                u_result ans = (_lidarDrv)->checkMotorCtrlSupport(motorSupport, timeout);
+                if (motorSupport == MotorCtrlSupportNone)
+                    support = false;
+                return ans;
+            }
+
+            u_result RPlidarDriver::setLidarIpConf(const rplidar_ip_conf_t& conf, _u32 timeout)
+            {
+                return (_lidarDrv)->setLidarIpConf(conf, timeout);
+            }
+
+            u_result RPlidarDriver::getLidarIpConf(rplidar_ip_conf_t& conf, _u32 timeout)
+            {
+                return (_lidarDrv)->getLidarIpConf(conf, timeout);
+            }
+
+            u_result RPlidarDriver::getDeviceMacAddr(_u8* macAddrArray, _u32 timeoutInMs)
+            {
+                return (_lidarDrv)->getDeviceMacAddr(macAddrArray, timeoutInMs);
+            }
+
+            u_result RPlidarDriver::stop(_u32 timeout)
+            {
+                return (_lidarDrv)->stop(timeout);
+            }
+
+            u_result RPlidarDriver::grabScanDataHq(rplidar_response_measurement_node_hq_t* nodebuffer, size_t& count, _u32 timeout)
+            {
+                return (_lidarDrv)->grabScanDataHq(nodebuffer, count, timeout);
+            }
+
+            u_result RPlidarDriver::ascendScanData(rplidar_response_measurement_node_hq_t* nodebuffer, size_t count)
+            {
+                return (_lidarDrv)->ascendScanData(nodebuffer, count);
+            }
+
+            u_result RPlidarDriver::getScanDataWithInterval(rplidar_response_measurement_node_t* nodebuffer, size_t& count)
+            {
+                return RESULT_OPERATION_NOT_SUPPORT;
+            }
+
+            u_result RPlidarDriver::getScanDataWithIntervalHq(rplidar_response_measurement_node_hq_t* nodebuffer, size_t& count)
+            {
+                return (_lidarDrv)->getScanDataWithIntervalHq(nodebuffer, count);
+            }
+
+            u_result RPlidarDriver::startMotor()
+            {
+                return (_lidarDrv)->setMotorSpeed(DEFAULT_MOTOR_SPEED);
+            }
+            u_result RPlidarDriver::stopMotor()
+            {
+                return (_lidarDrv)->setMotorSpeed(0);
+            }
         }
-        if (!(bool)_channel) return SL_RESULT_OPERATION_FAIL;
-        
-        _lidarDrv = *createLidarDriver();
+    }
+}
 
-        if (!(bool)_lidarDrv) return SL_RESULT_OPERATION_FAIL;
+extern "C" {
 
-        sl_result ans =(_lidarDrv)->connect(_channel);
-        return ans;
+    __declspec(dllexport) RPlidarDriver* CreateDriverInstance(_u32 drivertype) {
+        return RPlidarDriver::CreateDriver(drivertype);
     }
 
-    void RPlidarDriver::disconnect()
-    {
-        (_lidarDrv)->disconnect();
+    __declspec(dllexport) void DisposeDriverInstance(RPlidarDriver* driver) {
+        RPlidarDriver::DisposeDriver(driver);
     }
 
-    bool RPlidarDriver::isConnected() 
-    { 
-        return (_lidarDrv)->isConnected();
-    }
-     
-    u_result RPlidarDriver::reset(_u32 timeout)
-    {
-        return (_lidarDrv)->reset();
+    __declspec(dllexport) u_result ConnectDriver(RPlidarDriver* driver, const char* path, _u32 portOrBaud, _u32 flag) {
+        return driver->connect(path, portOrBaud, flag);
     }
 
-    u_result RPlidarDriver::getAllSupportedScanModes(std::vector<RplidarScanMode>& outModes, _u32 timeoutInMs)
-    {
-        return (_lidarDrv)->getAllSupportedScanModes(outModes, timeoutInMs);
+    __declspec(dllexport) void DisconnectDriver(RPlidarDriver* driver) {
+        driver->disconnect();
     }
 
-    u_result RPlidarDriver::getTypicalScanMode(_u16& outMode, _u32 timeoutInMs)
-    {
-        return (_lidarDrv)->getTypicalScanMode(outMode, timeoutInMs);
+    __declspec(dllexport) bool IsDriverConnected(RPlidarDriver* driver) {
+        return driver->isConnected();
     }
 
-    u_result RPlidarDriver::startScan(bool force, bool useTypicalScan, _u32 options, RplidarScanMode* outUsedScanMode)
-    {
-        return (_lidarDrv)->startScan(force, useTypicalScan, options, outUsedScanMode);
+    __declspec(dllexport) u_result ResetDriver(RPlidarDriver* driver, _u32 timeout) {
+        return driver->reset(timeout);
     }
 
-    u_result RPlidarDriver::startScanExpress(bool force, _u16 scanMode, _u32 options, RplidarScanMode* outUsedScanMode, _u32 timeout)
-    {
-        return (_lidarDrv)->startScanExpress(force, scanMode, options, outUsedScanMode, timeout);
-    }
-    
-    u_result RPlidarDriver::getHealth(rplidar_response_device_health_t & health, _u32 timeout)
-    {
-        return (_lidarDrv)->getHealth(health, timeout);
+    __declspec(dllexport) u_result StartScanDriver(RPlidarDriver* driver, bool force, bool useTypicalScan) {
+        return driver->startScan(force, useTypicalScan);
     }
 
-    u_result RPlidarDriver::getDeviceInfo(rplidar_response_device_info_t & info, _u32 timeout)
-    {
-        return (_lidarDrv)->getDeviceInfo(info, timeout);
+    __declspec(dllexport) u_result StopScanDriver(RPlidarDriver* driver) {
+        return driver->stop();
     }
 
-    u_result RPlidarDriver::setMotorPWM(_u16 pwm)
-    {
-        return (_lidarDrv)->setMotorSpeed(pwm);
-    }   
-    
-    u_result RPlidarDriver::checkMotorCtrlSupport(bool & support, _u32 timeout)
-    {
-        MotorCtrlSupport motorSupport;
-        u_result ans = (_lidarDrv)->checkMotorCtrlSupport(motorSupport, timeout);
-        if (motorSupport == MotorCtrlSupportNone)
-            support = false;
-        return ans;
+    __declspec(dllexport) u_result GetDeviceInfoDriver(RPlidarDriver* driver, rplidar_response_device_info_t* info) {
+        return driver->getDeviceInfo(*info);
     }
 
-    u_result RPlidarDriver::setLidarIpConf(const rplidar_ip_conf_t& conf, _u32 timeout)
-	{
-		return (_lidarDrv)->setLidarIpConf(conf, timeout);
-	}
-
-    u_result RPlidarDriver::getLidarIpConf(rplidar_ip_conf_t& conf, _u32 timeout)
-    {
-        return (_lidarDrv)->getLidarIpConf(conf, timeout);
+    __declspec(dllexport) u_result SetMotorPWMDriver(RPlidarDriver* driver, _u16 pwm) {
+        return driver->setMotorPWM(pwm);
     }
 
-    u_result RPlidarDriver::getDeviceMacAddr(_u8* macAddrArray, _u32 timeoutInMs)
-	{
-		return (_lidarDrv)->getDeviceMacAddr(macAddrArray, timeoutInMs);
-	}
-
-    u_result RPlidarDriver::stop(_u32 timeout) 
-    { 
-        return (_lidarDrv)->stop(timeout);
+    __declspec(dllexport) u_result StartMotorDriver(RPlidarDriver* driver) {
+        return driver->startMotor();
     }
 
-    u_result RPlidarDriver::grabScanDataHq(rplidar_response_measurement_node_hq_t * nodebuffer, size_t & count, _u32 timeout)
-    {
-        return (_lidarDrv)->grabScanDataHq(nodebuffer, count, timeout);
+    __declspec(dllexport) u_result StopMotorDriver(RPlidarDriver* driver) {
+        return driver->stopMotor();
     }
-
-    u_result RPlidarDriver::ascendScanData(rplidar_response_measurement_node_hq_t * nodebuffer, size_t count)
-    {
-        return (_lidarDrv)->ascendScanData(nodebuffer, count);
-    }
-    
-    u_result RPlidarDriver::getScanDataWithInterval(rplidar_response_measurement_node_t * nodebuffer, size_t & count)
-    {
-        return RESULT_OPERATION_NOT_SUPPORT;
-    }
-
-    u_result RPlidarDriver::getScanDataWithIntervalHq(rplidar_response_measurement_node_hq_t * nodebuffer, size_t & count)
-    {
-        return (_lidarDrv)->getScanDataWithIntervalHq(nodebuffer, count);
-    }
-
-    u_result RPlidarDriver::startMotor()
-    {
-        return (_lidarDrv)->setMotorSpeed(DEFAULT_MOTOR_SPEED);
-    }
-    u_result RPlidarDriver::stopMotor()
-    {
-        return (_lidarDrv)->setMotorSpeed(0);
-    }
-
-}}}
+}
